@@ -1,6 +1,6 @@
 # Overview
-This Terraform module creates an API Gateway that can have HTTP services
-attached to it.
+This Terraform module creates an API Gateway that proxies HTTP request
+to the specified target URL.
 
 # Prerequisites
 * [Terraform](https://terraform.io/) installed and working
