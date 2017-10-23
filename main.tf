@@ -7,64 +7,86 @@ provider "aws" {
     region     = "${var.region}"
 }
 
-data "aws_ami" "lookup" {
-    most_recent = true
-    name_regex  = "${var.ami_regexp}"
-    owners      = ["amazon"]
-    filter {
-       name   = "architecture"
-       values = ["x86_64"]
-    }
-    filter {
-       name   = "image-type"
-       values = ["machine"]
-    }
-    filter {
-       name   = "state"
-       values = ["available"]
-    }
-    filter {
-       name   = "virtualization-type"
-       values = ["hvm"]
-    }
-    filter {
-       name   = "hypervisor"
-       values = ["xen"]
-    }
-    filter {
-       name   = "root-device-type"
-       values = ["ebs"]
+resource "aws_api_gateway_rest_api" "rest_api" {
+    name        = "${var.api_name}"
+    description = "${var.api_description}"
+}
+
+resource "aws_api_gateway_resource" "parent_resource" {
+    rest_api_id = "${aws_api_gateway_rest_api.rest_api.id}"
+    parent_id   = "${aws_api_gateway_rest_api.rest_api.root_resource_id}"
+    path_part   = "api"
+}
+
+resource "aws_api_gateway_resource" "child_resource" {
+    rest_api_id = "${aws_api_gateway_rest_api.rest_api.id}"
+    parent_id   = "${aws_api_gateway_resource.parent_resource.id}"
+    path_part   = "{proxy+}"
+}
+
+resource "aws_api_gateway_method" "parent_method" {
+    rest_api_id        = "${aws_api_gateway_rest_api.rest_api.id}"
+    resource_id        = "${aws_api_gateway_resource.parent_resource.id}"
+    http_method        = "ANY"
+    authorization      = "NONE"
+    api_key_required   = "false"
+    request_parameters = {
+        "method.request.header.host" = true,
+        "method.request.path.proxy" = true
     }
 }
 
-resource "aws_instance" "instance" {
-    count = "${var.instance_limit > "0" ? var.instance_limit : length( var.subnet_ids )}"
-
-    ami                         = "${data.aws_ami.lookup.id}"
-    ebs_optimized               = "${var.ebs_optimized}"
-    instance_type               = "${var.instance_type}"
-    key_name                    = "${var.ssh_key_name}"
-    monitoring                  = true
-    vpc_security_group_ids      = ["${var.security_group_ids}"]
-    subnet_id                   = "${element( var.subnet_ids, count.index )}"
-    iam_instance_profile        = "${var.instance_profile}"
-
-    tags {
-        Name        = "${format( "${var.name} %02d", count.index+1 )}"
-        Project     = "${var.project}"
-        Purpose     = "${var.purpose}"
-        Creator     = "${var.creator}"
-        Environment = "${var.environment}"
-        Freetext    = "${var.freetext}"
-        Scheduled   = "${var.scheduled}"
-        Duty        = "${var.duty}"
+resource "aws_api_gateway_method" "child_method" {
+    rest_api_id        = "${aws_api_gateway_rest_api.rest_api.id}"
+    resource_id        = "${aws_api_gateway_resource.child_resource.id}"
+    http_method        = "ANY"
+    authorization      = "NONE"
+    api_key_required   = "false"
+    request_parameters = {
+        "method.request.header.host" = true,
+        "method.request.path.proxy" = true
     }
-    volume_tags {
-        Name        = "${format( "${var.name} %02d", count.index+1 )}"
-        Project     = "${var.project}"
-        Purpose     = "${var.purpose}"
-        Creator     = "${var.creator}"
-        Environment = "${var.environment}"
-        Freetext    = "${var.freetext}"
+}
+
+resource "aws_api_gateway_integration" "parent_integration" {
+    depends_on = ["aws_api_gateway_method.parent_method"]
+
+    rest_api_id             = "${aws_api_gateway_rest_api.rest_api.id}"
+    resource_id             = "${aws_api_gateway_resource.parent_resource.id}"
+    http_method             = "${aws_api_gateway_method.parent_method.http_method}"
+    integration_http_method = "ANY"
+    type                    = "HTTP_PROXY"
+    uri                     = "http://httpbin.org/"
+    passthrough_behavior    = "WHEN_NO_MATCH"
+    cache_key_parameters    = []
+    request_parameters      = {
+        "integration.request.header.x-forwarded-host" = "method.request.header.host"
+        "integration.request.path.proxy"              = "method.request.path.proxy"
     }
+}
+
+resource "aws_api_gateway_integration" "child_integration" {
+    depends_on = ["aws_api_gateway_method.child_method"]
+
+    rest_api_id             = "${aws_api_gateway_rest_api.rest_api.id}"
+    resource_id             = "${aws_api_gateway_resource.child_resource.id}"
+    http_method             = "${aws_api_gateway_method.child_method.http_method}"
+    integration_http_method = "ANY"
+    type                    = "HTTP_PROXY"
+    uri                     = "http://httpbin.org/{proxy}"
+    passthrough_behavior    = "WHEN_NO_MATCH"
+    cache_key_parameters    = ["method.request.path.proxy"]
+    request_parameters      = {
+        "integration.request.header.x-forwarded-host" = "method.request.header.host",
+        "integration.request.path.proxy"              = "method.request.path.proxy"
+    }
+}
+
+resource "aws_api_gateway_deployment" "deployment" {
+    depends_on = ["aws_api_gateway_integration.parent_integration","aws_api_gateway_integration.child_integration"]
+
+    rest_api_id       = "${aws_api_gateway_rest_api.rest_api.id}"
+    stage_name        = "development"
+    description       = "Just kicking the tires on Terraform integration"
+    stage_description = "API releases currently under development"
 }

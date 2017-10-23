@@ -39,28 +39,10 @@ data "terraform_remote_state" "iam" {
     }
 }
 
-module "ec2" {
+module "api_gateway" {
     source = "../"
 
     region                      = "us-west-2"
-    name                        = "Ultron"
-    project                     = "Debug"
-    purpose                     = "Runs Docker containers"
-    creator                     = "kurron@jvmguy.com"
-    environment                 = "development"
-    freetext                    = "No notes at this time."
-    duty                        = "Docker"
-    ami_regexp                  = "^amzn-ami-.*-amazon-ecs-optimized$"
-    ebs_optimized               = "false"
-    instance_type               = "t2.nano"
-    ssh_key_name                = "${data.terraform_remote_state.bastion.ssh_key_name}"
-    security_group_ids          = ["${data.terraform_remote_state.security-groups.ec2_id}"]
-    subnet_ids                  = "${data.terraform_remote_state.vpc.public_subnet_ids}"
-    instance_profile            = "${data.terraform_remote_state.iam.docker_profile_id}"
-    scheduled                   = "Yes"
-    instance_limit              = "0"
-}
-
-output "instance_ids" {
-    value = "${module.ec2.instance_ids}"
+    api_name                    = "Debug API"
+    api_description             = "A faux API just to test out the Terraform module"    
 }
