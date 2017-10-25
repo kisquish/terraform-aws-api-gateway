@@ -4,12 +4,8 @@ terraform {
 }
 
 provider "aws" {
-    region = "${var.region}"
-}
-
-variable "region" {
-    type = "string"
-    default = "us-east-1"
+    alias = "east"
+    region = "us-east-1"
 }
 
 variable "domain_name" {
@@ -18,11 +14,13 @@ variable "domain_name" {
 }
 
 data "aws_acm_certificate" "certificate" {
+    provider = "aws.east"
     domain   = "*.${var.domain_name}"
     statuses = ["ISSUED"]
 }
 
 data "aws_route53_zone" "selected" {
+    provider     = "aws.east"
     name         = "${var.domain_name}."
     private_zone = false
 }
