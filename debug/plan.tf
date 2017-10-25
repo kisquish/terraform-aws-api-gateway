@@ -3,15 +3,39 @@ terraform {
     backend "s3" {}
 }
 
+provider "aws" {
+    region = "${var.region}"
+}
+
+variable "region" {
+    type = "string"
+    default = "us-east-1"
+}
+
+variable "domain_name" {
+    type = "string"
+    default = "transparent.engineering"
+}
+
+data "aws_acm_certificate" "certificate" {
+    domain   = "*.${var.domain_name}"
+    statuses = ["ISSUED"]
+}
+
+data "aws_route53_zone" "selected" {
+    name         = "${var.domain_name}."
+    private_zone = false
+}
+
 module "api_gateway" {
     source = "../"
 
     region          = "us-west-2"
-    api_name        = "Debug API"
-    api_description = "A faux API just to test out the Terraform module"
+    api_name        = "Debug Proxy"
+    api_description = "A faux proxy just to test out the Terraform module"
     domain_name     = "debug.transparent.engineering"
-    certificate_arn = "arn:aws:acm:us-east-1:037083514056:certificate/6e19dd75-e90d-4a83-a05e-2dc4bb171b4d"
-    hosted_zone_id  = "Z182ME1672NUSH"
+    certificate_arn = "${data.aws_acm_certificate.certificate.arn}"
+    hosted_zone_id  = "${data.aws_route53_zone.selected.zone_id}"
 }
 
 output "api_gateway_id" {
