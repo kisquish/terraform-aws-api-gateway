@@ -1,5 +1,5 @@
 # Overview
-This Terraform module creates an API Gateway with not service bindings.
+This Terraform module creates an API Gateway with no service bindings.
 The bindings are added using [another module](https://github.com/kurron/terraform-aws-api-gateway-binding).
 
 # Prerequisites

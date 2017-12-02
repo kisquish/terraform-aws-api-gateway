@@ -1,5 +1,5 @@
 terraform {
-    required_version = ">= 0.10.7"
+    required_version = ">= 0.11"
     backend "s3" {}
 }
 
@@ -42,4 +42,8 @@ output "api_gateway_id" {
 
 output "api_gateway_root_resource_id" {
     value = "${module.api_gateway.api_gateway_root_resource_id}"
+}
+
+output "domain_name" {
+    value = "${module.api_gateway.domain_name}"
 }
